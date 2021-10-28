@@ -1,6 +1,7 @@
 package com.jedlab.framework.spring.rest;
 
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
@@ -8,16 +9,14 @@ import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.ResponseEntity.BodyBuilder;
-import org.springframework.validation.Validator;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -26,7 +25,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import com.jedlab.framework.db.EntityModel;
 import com.jedlab.framework.spring.mvc.Pager;
 import com.jedlab.framework.spring.rest.QueryWhereParser.FilterProperty;
-import com.jedlab.framework.spring.service.AbstractService;
+import com.jedlab.framework.spring.service.AbstractEntityService;
 import com.jedlab.framework.spring.service.JPARestriction;
 import com.jedlab.framework.spring.validation.BindingValidationError;
 import com.jedlab.framework.util.StringUtil;
@@ -36,87 +35,98 @@ import com.jedlab.framework.util.StringUtil;
  *
  * @param <E>
  */
-public abstract class AbstractQueryRestController<E extends EntityModel>
-{
+public abstract class AbstractQueryRestController<E extends EntityModel, T> {
 
-    protected static final int INITIAL_PAGE = 0;
-    protected static final int INITIAL_PAGE_SIZE = 5;
-    protected static final int BUTTONS_TO_SHOW = 5;
-    protected static final int[] PAGE_SIZES = { 5, 10, 20 };
+	protected static final int INITIAL_PAGE = 0;
+	protected static final int INITIAL_PAGE_SIZE = 200;
+	protected static final int BUTTONS_TO_SHOW = 5;
 
-    @Autowired
-    protected Validator validator;
+	private AbstractEntityService<E> service;
 
-    @Autowired
-    protected MessageSource messageSource;
+	private EntityModelMapper<E, T> entityModelMapper;
 
-    @ResponseBody
-    @GetMapping(value="/",consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ResultList<E>> get(@RequestParam("pageSize") Optional<Integer> pageSize, @RequestParam("page") Optional<Integer> page,
-            @RequestParam(value = "filter", required = false) String filter,
-            @RequestParam(value = "match", required = false, defaultValue = QueryWhereParser.AND) String match, Sort sort, 
-            @RequestHeader(value="X-VIEWNAME",required=false) String viewName)
-            throws BindingValidationError, UnsupportedEncodingException
-    {
-        int evalPageSize = pageSize.orElse(INITIAL_PAGE_SIZE);
-        int evalPage = (page.orElse(0) < 1) ? INITIAL_PAGE : page.get() - 1;
+	Class<T> returnInstance;
 
-        //
-        QueryWhereParser qb = filter != null ? new QueryWhereParser(URLDecoder.decode(filter, "UTF-8")) : QueryWhereParser.EMPTY;
-        if (qb != null)
-            qb.setMatch(match);
+	public AbstractQueryRestController(AbstractEntityService<E> service) {
+		this.service = service;
+	}
 
-        Page<E> list = getService().load(PageRequest.of(evalPage, evalPageSize), getEntityClass(), getRestriction(qb.getFilterProperties()),
-                sort);
-        Pager pager = new Pager(list.getTotalPages(), list.getNumber(), BUTTONS_TO_SHOW);        
-        BodyBuilder ok = ResponseEntity.ok();
-        if(StringUtil.isNotEmpty(viewName))
-            ok.header("X-VIEWNAME", viewName);
-        return ok.body(new ResultList<E>(evalPageSize, new ArrayList<>(list.getContent()), pager.getStartPage(), pager.getEndPage(),
-                getService().count(getEntityClass(), getRestriction(qb.getFilterProperties())), list.getTotalPages(), getEntityClass()));
-    }
+	public void setEntityModelMapper(EntityModelMapper<E, T> entityModelMapper) {
+		this.entityModelMapper = entityModelMapper;
+	}
 
-    protected JPARestriction getRestriction(List<FilterProperty> filterProperties)
-    {
-        return null;
-    }
+	@ResponseBody
+	@GetMapping(value = "", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	public ResponseEntity<ResultList<T>> get(@RequestParam("pageSize") Optional<Integer> pageSize,
+			@RequestParam("page") Optional<Integer> page,
+			@RequestParam(value = "filter", required = false) String filter,
+			@RequestParam(value = "match", required = false, defaultValue = QueryWhereParser.AND) String match,
+			Sort sort, @RequestHeader(value = "X-VIEWNAME", required = false) String viewName)
+			throws BindingValidationError, UnsupportedEncodingException {
+		int evalPageSize = pageSize.orElse(INITIAL_PAGE_SIZE);
+		int evalPage = (page.orElse(0) < 1) ? INITIAL_PAGE : page.get() - 1;
 
-    
+		//
+		QueryWhereParser qb = filter != null ? new QueryWhereParser(URLDecoder.decode(filter, "UTF-8"))
+				: QueryWhereParser.EMPTY;
+		if (qb != null)
+			qb.setMatch(match);
 
-    protected abstract AbstractService<E> getService();
+		Page<E> list = getService().load(PageRequest.of(evalPage, evalPageSize), getEntityClass(),
+				getRestriction(qb.getFilterProperties()), sort);
+		Pager pager = new Pager(list.getTotalPages(), list.getNumber(), BUTTONS_TO_SHOW);
+		BodyBuilder ok = ResponseEntity.ok();
+		if (StringUtil.isNotEmpty(viewName))
+			ok.header("X-VIEWNAME", viewName);
+		//
+		List<T> resultList = list.getContent().stream().map(this::toModel).collect(Collectors.toList());
+		//
+		return ok.body(new ResultList<T>(evalPageSize, new ArrayList<>(resultList), pager.getStartPage(),
+				pager.getEndPage(), getService().count(getEntityClass(), getRestriction(qb.getFilterProperties())),
+				list.getTotalPages(), getEntityClass()));
+	}
 
-    private Class<E> entityClass;
+	private T toModel(E entity) {
+		if (entityModelMapper == null) {
+			try {
+				return returnInstance.getDeclaredConstructor().newInstance();
+			} catch (InstantiationException | IllegalAccessException | IllegalArgumentException
+					| InvocationTargetException | NoSuchMethodException | SecurityException e) {
+				e.printStackTrace();
+			}
+		}
+		return entityModelMapper.toModel(entity);
+	}
 
-    public Class<E> getEntityClass()
-    {
-        if (entityClass == null)
-        {
-            Type type = getClass().getGenericSuperclass();
-            if (type instanceof ParameterizedType)
-            {
-                ParameterizedType paramType = (ParameterizedType) type;
-                if (paramType.getActualTypeArguments().length == 2)
-                {
-                    if (paramType.getActualTypeArguments()[1] instanceof TypeVariable)
-                    {
-                        throw new IllegalArgumentException("Could not guess entity class by reflection");
-                    }
-                    else
-                    {
-                        entityClass = (Class<E>) paramType.getActualTypeArguments()[1];
-                    }
-                }
-                else
-                {
-                    entityClass = (Class<E>) paramType.getActualTypeArguments()[0];
-                }
-            }
-            else
-            {
-                throw new IllegalArgumentException("Could not guess entity class by reflection");
-            }
-        }
-        return entityClass;
-    }
+	protected JPARestriction getRestriction(List<FilterProperty> filterProperties) {
+		return null;
+	}
+
+	protected AbstractEntityService<E> getService() {
+		return service;
+	}
+
+	private Class<E> entityClass;
+
+	public Class<E> getEntityClass() {
+		if (entityClass == null) {
+			Type type = getClass().getGenericSuperclass();
+			if (type instanceof ParameterizedType) {
+				ParameterizedType paramType = (ParameterizedType) type;
+				if (paramType.getActualTypeArguments().length == 2) {
+					if (paramType.getActualTypeArguments()[1] instanceof TypeVariable) {
+						throw new IllegalArgumentException("Could not guess entity class by reflection");
+					} else {
+						entityClass = (Class<E>) paramType.getActualTypeArguments()[0];
+					}
+				} else {
+					entityClass = (Class<E>) paramType.getActualTypeArguments()[0];
+				}
+			} else {
+				throw new IllegalArgumentException("Could not guess entity class by reflection");
+			}
+		}
+		return entityClass;
+	}
 
 }

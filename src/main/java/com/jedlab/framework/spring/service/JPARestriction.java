@@ -17,5 +17,10 @@ public interface JPARestriction
     @SuppressWarnings("rawtypes")
     public Specification listSpec(CriteriaBuilder builder, CriteriaQuery criteria, Root root);
 
+	default boolean distinct()
+	{
+		return false;
+	}
+
     
 }

@@ -58,7 +58,7 @@ public class SpringUtil implements ApplicationContextAware {
     public static String getMessage(String code, Object[] args)
     {
         MessageSource bean = getBean(MessageSource.class);
-        return bean.getMessage(code, args, new Locale("fa", "IR"));
+        return bean.getMessage(code, args, code, new Locale("fa", "IR"));
     }
 
 }
