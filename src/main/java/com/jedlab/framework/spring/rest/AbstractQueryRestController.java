@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import javax.servlet.http.HttpServletRequest;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -61,7 +63,8 @@ public abstract class AbstractQueryRestController<E extends EntityModel, T> {
 			@RequestParam("page") Optional<Integer> page,
 			@RequestParam(value = "filter", required = false) String filter,
 			@RequestParam(value = "match", required = false, defaultValue = QueryWhereParser.AND) String match,
-			Sort sort, @RequestHeader(value = "X-VIEWNAME", required = false) String viewName)
+			Sort sort, @RequestHeader(value = "X-VIEWNAME", required = false) String viewName,
+			HttpServletRequest request)
 			throws BindingValidationError, UnsupportedEncodingException {
 		int evalPageSize = pageSize.orElse(INITIAL_PAGE_SIZE);
 		int evalPage = (page.orElse(0) < 1) ? INITIAL_PAGE : page.get() - 1;
@@ -71,9 +74,9 @@ public abstract class AbstractQueryRestController<E extends EntityModel, T> {
 				: QueryWhereParser.EMPTY;
 		if (qb != null)
 			qb.setMatch(match);
-
+		JPARestriction restriction = getRestriction(qb.getFilterProperties(), request);
 		Page<E> list = getService().load(PageRequest.of(evalPage, evalPageSize), getEntityClass(),
-				getRestriction(qb.getFilterProperties()), sort);
+				restriction, sort);
 		Pager pager = new Pager(list.getTotalPages(), list.getNumber(), BUTTONS_TO_SHOW);
 		BodyBuilder ok = ResponseEntity.ok();
 		if (StringUtil.isNotEmpty(viewName))
@@ -81,8 +84,9 @@ public abstract class AbstractQueryRestController<E extends EntityModel, T> {
 		//
 		List<T> resultList = list.getContent().stream().map(this::toModel).collect(Collectors.toList());
 		//
+		Long count = getService().count(getEntityClass(), restriction);
 		return ok.body(new ResultList<T>(evalPageSize, new ArrayList<>(resultList), pager.getStartPage(),
-				pager.getEndPage(), getService().count(getEntityClass(), getRestriction(qb.getFilterProperties())),
+				pager.getEndPage(), count,
 				list.getTotalPages(), getEntityClass()));
 	}
 
@@ -98,7 +102,7 @@ public abstract class AbstractQueryRestController<E extends EntityModel, T> {
 		return entityModelMapper.toModel(entity);
 	}
 
-	protected JPARestriction getRestriction(List<FilterProperty> filterProperties) {
+	protected JPARestriction getRestriction(List<FilterProperty> filterProperties, HttpServletRequest request) {
 		return null;
 	}
 
