@@ -16,7 +16,7 @@ import com.jedlab.framework.json.JacksonView;
 @JsonIgnoreProperties(value = { "typeName" })
 //@JsonFilter("JsonViewFilter")
 @JacksonView
-public class ResultList<E> implements ParameterizedType
+public class ResultList<E> extends ResponseMessage implements ParameterizedType
 {
     private int selectedPageSize;
     private ArrayList<E> resultList;

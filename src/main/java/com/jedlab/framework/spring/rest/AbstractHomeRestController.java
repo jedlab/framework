@@ -14,6 +14,7 @@ import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.validation.Errors;
 import org.springframework.validation.ObjectError;
 import org.springframework.validation.Validator;
@@ -66,7 +67,7 @@ public abstract class AbstractHomeRestController<E extends EntityModel<?>, T> {
 
 	@ResponseBody
 	@PostMapping(value = "", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<ResponseMessage> post(@RequestBody T model, Errors errors, HttpServletRequest request)
+	public ResponseEntity<ResponseMessage> post(@RequestBody T model, HttpServletRequest request, Errors errors)
 			throws BindingValidationError {
 //		createInstance(entity, request);
 		E entity = toEntity(model);
@@ -77,8 +78,8 @@ public abstract class AbstractHomeRestController<E extends EntityModel<?>, T> {
 
 	@ResponseBody
 	@PutMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<ResponseMessage> put(@RequestBody String entity, @PathVariable("id") Long id, Errors errors,
-			HttpServletRequest request) throws BindingValidationError {
+	public ResponseEntity<ResponseMessage> put(@RequestBody String entity, @PathVariable("id") Long id, 
+			HttpServletRequest request, Errors errors) throws BindingValidationError {
 		E persistedEntity = service.readForUpdate(getEntityClass(), id, entity);
 //		createInstance(persistedEntity, request);
 		validate(persistedEntity, errors);
@@ -119,6 +120,8 @@ public abstract class AbstractHomeRestController<E extends EntityModel<?>, T> {
 		// BeanPropertyBindingResult(validated, Person.class.getSimpleName());
 		// spring validator
 //        validator.validate(validated, errors);        
+		if(errors == null)
+			errors = new BeanPropertyBindingResult(validated, getEntityClass().getName());
 		if (getValidator() != null && getValidator().supports(getEntityClass()))
 			getValidator().validate(validated, errors);
 		if (errors.hasErrors()) {

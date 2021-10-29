@@ -1,6 +1,9 @@
 package com.jedlab.framework.spring.service;
 
 import java.io.IOException;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +36,6 @@ import org.springframework.transaction.support.TransactionCallback;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jedlab.framework.exceptions.ServiceException;
-import com.jedlab.framework.spring.dao.AbstractDAO;
 import com.jedlab.framework.util.CollectionUtil;
 import com.jedlab.framework.util.StringUtil;
 
@@ -44,18 +46,12 @@ import com.jedlab.framework.util.StringUtil;
 public abstract class AbstractService<E>
 {
     private static final Log logger = LogFactory.getLog(AbstractService.class);
-    private AbstractDAO<E> repository;
     protected TrxManager trxManager;
     protected ObjectMapper mapper;
 
-    public AbstractDAO<E> getRepository()
-    {
-        return repository;
-    }
 
-    public AbstractService(AbstractDAO<E> repository, PlatformTransactionManager ptm)
+    public AbstractService(PlatformTransactionManager ptm)
     {
-        this.repository = repository;
         this.trxManager = new TrxManager(ptm);
         this.mapper = new ObjectMapper();
     }
@@ -72,9 +68,9 @@ public abstract class AbstractService<E>
             try
             {
                 beforeInsert(entity);
-                getRepository().save(entity);
+                getEntityManager().persist(entity);
                 if (flush)
-                    getRepository().flush();
+                    getEntityManager().flush();
             }
             catch (ServiceException e)
             {
@@ -106,7 +102,8 @@ public abstract class AbstractService<E>
 
     public void delete(Long id)
     {
-        getRepository().deleteById(id);
+    	E find = getEntityManager().find(getEntityClass(), id);
+        getEntityManager().remove(find);
     }
 
     public void update(E entity, boolean flush) throws ServiceException
@@ -117,9 +114,9 @@ public abstract class AbstractService<E>
             try
             {
                 beforeUpdate(entity);
-                getRepository().save(entity);
+                getEntityManager().merge(entity);
                 if (flush)
-                    getRepository().flush();
+                    getEntityManager().flush();
             }
             catch (ServiceException e)
             {
@@ -146,7 +143,7 @@ public abstract class AbstractService<E>
 
     public void flush()
     {
-        getRepository().flush();
+        getEntityManager().flush();
     }
 
     public void update(E entity) throws ServiceException
@@ -198,21 +195,12 @@ public abstract class AbstractService<E>
         return trxManager.execute(status -> getEntityManager().find(clz, id));
     }
 
-    public Iterable<E> findAll()
-    {
-        return getRepository().findAll();
-    }
-
-    public Iterable<E> findAll(Specification<E> spec)
-    {
-        return getRepository().findAll(spec);
-    }
 
     protected abstract EntityManager getEntityManager();
 
-    public Page<E> load(Pageable pageable, Class<E> clz, JPARestriction restriction)
+    public Page<E> load(Pageable pageable, JPARestriction restriction)
     {
-        return load(pageable, clz, restriction, null);
+        return load(pageable, getEntityClass(), restriction, null);
     }
 
     public Page<E> load(Pageable pageable, Class<E> clz, JPARestriction restriction, Sort sort)
@@ -300,10 +288,9 @@ public abstract class AbstractService<E>
     public E readForUpdate(Long id, String jsonContent)
     {
         return trxManager.execute(status -> {
-            Optional<E> entityOp = repository.findById(id);
-            if (entityOp.isPresent() == false)
+            E entity = getEntityManager().find(getEntityClass(), id);
+            if (entity == null)
                 throw new ServiceException("EntityNotFound");
-            E entity = entityOp.get();
             try
             {
                 mapper.readerForUpdating(entity).readValue(jsonContent);
@@ -315,5 +302,28 @@ public abstract class AbstractService<E>
             return entity;
         });
     }
+    
+    public Class<E> getEntityClass() {
+    	Class<E> entityClass = null;
+		if (entityClass == null) {
+			Type type = getClass().getGenericSuperclass();
+			if (type instanceof ParameterizedType) {
+				ParameterizedType paramType = (ParameterizedType) type;
+				if (paramType.getActualTypeArguments().length == 2) {
+					if (paramType.getActualTypeArguments()[1] instanceof TypeVariable) {
+						throw new IllegalArgumentException("Could not guess entity class by reflection");
+					} else {
+						entityClass = (Class<E>) paramType.getActualTypeArguments()[0];
+					}
+				} else {
+					entityClass = (Class<E>) paramType.getActualTypeArguments()[0];
+				}
+			} else {
+				throw new IllegalArgumentException("Could not guess entity class by reflection");
+			}
+		}
+		return entityClass;
+	}
+    
 
 }
