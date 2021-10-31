@@ -89,7 +89,7 @@ public abstract class AbstractHomeRestController<E extends EntityModel<?>, T> {
 
 	@ResponseBody
 	@DeleteMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<ResponseMessage> delete(@PathVariable("id") Long id, Errors errors)
+	public ResponseEntity<ResponseMessage> delete(@PathVariable("id") Long id)
 			throws BindingValidationError {
 		getService().delete(id);
 		return ResponseEntity.ok(new ResponseMessage(SpringUtil.getMessage("successful", null), 0));
