@@ -37,6 +37,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jedlab.framework.exceptions.ServiceException;
 import com.jedlab.framework.spring.dao.AbstractDAO;
+import com.jedlab.framework.spring.security.Permission;
+import com.jedlab.framework.spring.security.PermissionChecker;
 import com.jedlab.framework.util.CollectionUtil;
 import com.jedlab.framework.util.StringUtil;
 import com.jedlab.framework.web.SortProperty;
@@ -72,8 +74,13 @@ public abstract class AbstractEntityService<E>
         this.repository = repository;
         this.trxManager = new TrxManager(ptm);
     }
+    
 
-    protected Sort applySort(List<SortProperty> sortFields)
+	public Permission getPermission() {
+		return PermissionChecker.BasePermission;
+	}
+
+	protected Sort applySort(List<SortProperty> sortFields)
     {
         if (CollectionUtil.isEmpty(sortFields))
             return null;
@@ -93,6 +100,8 @@ public abstract class AbstractEntityService<E>
     @Transactional(rollbackFor = { Exception.class, ServiceException.class })
     public void insert(E entity, boolean flush) throws ServiceException
     {
+    	if(getPermission().canCreate() == false)
+    		throw new ServiceException("Create operation is not allowed");
         boolean success = true;
         try
         {
@@ -140,12 +149,16 @@ public abstract class AbstractEntityService<E>
 
     public void delete(Long id)
     {
+    	if(getPermission().canDelete() == false)
+    		throw new ServiceException("Delete operation is not allowed");
         getDao().deleteById(id);
     }
 
     @Transactional(rollbackFor = { Exception.class, ServiceException.class })
     public void update(E entity, boolean flush) throws ServiceException
     {
+    	if(getPermission().canUpdate() == false)
+    		throw new ServiceException("Update operation is not allowed");
         boolean success = true;
         try
         {
@@ -263,6 +276,8 @@ public abstract class AbstractEntityService<E>
     @Transactional(readOnly = true)
     public Page<E> load(Pageable pageable, Class<E> clz, JPARestriction restriction, Sort sort)
     {
+    	if(getPermission().canRead() == false)
+    		throw new ServiceException("Read operation is not allowed");
         List<E> result = new ArrayList<>();
         CriteriaBuilder builder = getEntityManager().getCriteriaBuilder();
         CriteriaQuery<E> criteria = builder.createQuery(clz);
@@ -331,7 +346,8 @@ public abstract class AbstractEntityService<E>
     public List<E> load(int first, int pageSize, List<SortProperty> sortFields,
             Map<String, Object> filters, Class<E> clz, JPARestriction restriction)
     {
-
+    	if(getPermission().canRead() == false)
+    		throw new ServiceException("Read operation is not allowed");
         List<E> result = new ArrayList<>();
         CriteriaBuilder builder = getEntityManager().getCriteriaBuilder();
         CriteriaQuery<E> criteria = builder.createQuery(clz);
