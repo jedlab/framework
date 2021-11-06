@@ -42,5 +42,15 @@ public class ResponseMessage
     {
         return code;
     }
+    
+    public static ResponseMessage success()
+    {
+    	return new ResponseMessage("success", 0);
+    }
+    
+    public static ResponseMessage fail()
+    {
+    	return new ResponseMessage("fail", 100);
+    }
 
 }
