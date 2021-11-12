@@ -312,6 +312,13 @@ public abstract class AbstractEntityService<E>
         }
 
         TypedQuery<E> createQuery = getEntityManager().createQuery(criteria);
+        if(getHints() != null)
+        {
+        	for(Map.Entry<String, String> hint: getHints().entrySet())
+        	{
+        		createQuery = createQuery.setHint(hint.getKey(), hint.getValue());
+        	}
+        }
         createQuery.setFirstResult((int) pageable.getOffset());
         // set 0 for unlimited
         if (pageable.getPageSize() > 0)
@@ -355,6 +362,8 @@ public abstract class AbstractEntityService<E>
         criteria.select(root);
         if (restriction != null)
         {
+        	 if(restriction.distinct())
+                 criteria.distinct(true);
             Specification listSpec = restriction.listSpec(builder, criteria, root);
             if (listSpec != null)
             {
@@ -376,6 +385,13 @@ public abstract class AbstractEntityService<E>
         }
 
         TypedQuery<E> createQuery = getEntityManager().createQuery(criteria);
+        if(getHints() != null)
+        {
+        	for(Map.Entry<String, String> hint: getHints().entrySet())
+        	{
+        		createQuery = createQuery.setHint(hint.getKey(), hint.getValue());
+        	}
+        }
         createQuery.setFirstResult(first);
         // set 0 for unlimited
         if (pageSize > 0)

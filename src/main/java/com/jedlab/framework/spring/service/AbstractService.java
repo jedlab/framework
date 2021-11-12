@@ -247,6 +247,13 @@ public abstract class AbstractService<E>
                 }
 
                 TypedQuery<E> createQuery = entityManager.createQuery(criteria);
+                if(getHints() != null)
+                {
+                	for(Map.Entry<String, String> hint: getHints().entrySet())
+                	{
+                		createQuery = createQuery.setHint(hint.getKey(), hint.getValue());
+                	}
+                }
                 createQuery.setFirstResult((int) pageable.getOffset());
                 // set 0 for unlimited
                 if (pageable.getPageSize() > 0)
