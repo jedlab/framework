@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -20,6 +21,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.ResponseEntity.BodyBuilder;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -64,8 +66,7 @@ public abstract class AbstractQueryRestController<E extends EntityModel, T> {
 			@RequestParam(value = "filter", required = false) String filter,
 			@RequestParam(value = "match", required = false, defaultValue = QueryWhereParser.AND) String match,
 			Sort sort, @RequestHeader(value = "X-VIEWNAME", required = false) String viewName,
-			HttpServletRequest request)
-			throws BindingValidationError, UnsupportedEncodingException {
+			HttpServletRequest request) throws BindingValidationError, UnsupportedEncodingException {
 		int evalPageSize = pageSize.orElse(INITIAL_PAGE_SIZE);
 		int evalPage = (page.orElse(0) < 1) ? INITIAL_PAGE : page.get() - 1;
 
@@ -75,8 +76,7 @@ public abstract class AbstractQueryRestController<E extends EntityModel, T> {
 		if (qb != null)
 			qb.setMatch(match);
 		JPARestriction restriction = getRestriction(qb.getFilterProperties(), request);
-		Page<E> list = getService().load(PageRequest.of(evalPage, evalPageSize), getEntityClass(),
-				restriction, sort);
+		Page<E> list = getService().load(PageRequest.of(evalPage, evalPageSize), getEntityClass(), restriction, sort);
 		Pager pager = new Pager(list.getTotalPages(), list.getNumber(), BUTTONS_TO_SHOW);
 		BodyBuilder ok = ResponseEntity.ok();
 		if (StringUtil.isNotEmpty(viewName))
@@ -86,8 +86,23 @@ public abstract class AbstractQueryRestController<E extends EntityModel, T> {
 		//
 		Long count = getService().count(getEntityClass(), restriction);
 		return ok.body(new ResultList<T>(evalPageSize, new ArrayList<>(resultList), pager.getStartPage(),
-				pager.getEndPage(), count,
-				list.getTotalPages(), getEntityClass()));
+				pager.getEndPage(), count, list.getTotalPages(), getEntityClass()));
+	}
+
+	@ResponseBody
+	@GetMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	public ResponseEntity<ResultObjectMessage<T>> getById(@PathVariable("id") Long id,
+			@RequestHeader(value = "X-VIEWNAME", required = false) String viewName, HttpServletRequest request) {
+		E findById = getService().findById(getEntityClass(), id);
+		if (findById == null)
+			return ResponseEntity.noContent().build();
+		BodyBuilder ok = ResponseEntity.ok();
+		if (StringUtil.isNotEmpty(viewName))
+			ok.header("X-VIEWNAME", viewName);
+		//
+		T model = toModel(findById);
+		//
+		return ok.body(new ResultObjectMessage<T>("success", 0, model));
 	}
 
 	private T toModel(E entity) {
