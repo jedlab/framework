@@ -19,6 +19,6 @@ public interface RevisionPO
     
     public Date getRevisionDate();
     
-    public int getId();
+    public long getId();
 
 }
