@@ -4,6 +4,8 @@ import java.util.Date;
 
 import javax.persistence.Column;
 import javax.persistence.MappedSuperclass;
+import javax.persistence.PrePersist;
+import javax.persistence.PreUpdate;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
 import javax.persistence.Version;
@@ -69,6 +71,19 @@ public abstract class PO extends BasePO
     public void setCreatedDate(Date createdDate)
     {
         this.createdDate = createdDate;
+    }
+    
+    @PreUpdate
+    public void preUpdate() {
+    	setUpdatedDate(new Date());
+    	if(getCreatedDate() == null)
+    		setCreatedDate(new Date());
+    }
+    
+    @PrePersist
+    public void prePersist()
+    {
+    	setCreatedDate(new Date());
     }
 
 }

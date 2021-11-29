@@ -13,13 +13,14 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.jedlab.framework.json.JacksonView;
 
 @Axon
-@JsonIgnoreProperties(value = { "typeName" })
+@JsonIgnoreProperties(value = { "typeName", "entityClass" })
 //@JsonFilter("JsonViewFilter")
 @JacksonView
 public class EntityResultList<E> extends ResponseMessage implements ParameterizedType {
 	private List<E> resultList;
 	private long resultCount;
 	private int totalPage;
+	private Class<E> entityClass;
 
 	public EntityResultList(String message, int code, List<E> resultList, long resultCount) {
 		super(message, code);
@@ -74,8 +75,10 @@ public class EntityResultList<E> extends ResponseMessage implements Parameterize
 		return this;
 	}
 
-	private Class<E> entityClass;
+	
 
+	@IgnoreElement
+	@JsonIgnore
 	public Class<E> getEntityClass() {
 		if (entityClass == null) {
 			Type type = getClass().getGenericSuperclass();
