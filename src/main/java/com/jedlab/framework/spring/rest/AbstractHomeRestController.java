@@ -82,10 +82,14 @@ public abstract class AbstractHomeRestController<E extends EntityModel<?>, T> {
 			HttpServletRequest request, Errors errors) throws BindingValidationError {
 		E persistedEntity = service.readForUpdate(getEntityClass(), id, entity);
 //		createInstance(persistedEntity, request);
-		validate(persistedEntity, errors);
+		validateUpdate(entity, persistedEntity);
 		getService().update(persistedEntity);
 		return ResponseEntity.ok(new ResponseMessage(SpringUtil.getMessage("successful", null), 0));
 	}
+
+	protected void validateUpdate(String body, E persistedEntity) {}
+
+
 
 	@ResponseBody
 	@DeleteMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)

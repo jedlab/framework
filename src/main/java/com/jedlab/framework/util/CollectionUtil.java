@@ -8,6 +8,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import com.google.common.collect.Lists;
+
 /**
  * @author omid
  * 
@@ -40,8 +42,9 @@ public class CollectionUtil
         return res;
     }
     
-    public static String commaSeparatedString(List<String> items)
+    public static String commaSeparatedString(Collection<String> itemList)
     {
+    	ArrayList<String> items = Lists.newArrayList(itemList);
         if (items == null)
             return null;
         String res = "";
